@@ -23,33 +23,25 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Always set a default user for now to bypass authentication
+  const [user, setUser] = useState<User | null>({ username: 'demo' });
+  const [isLoading, setIsLoading] = useState(false);
 
+  // No need to check localStorage since we're bypassing auth
   useEffect(() => {
-    // Check if user is already logged in
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
     setIsLoading(false);
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    // Simple authentication for demo purposes
-    // In a real app, validate against server
-    if (username && password) {
-      const user = { username };
-      setUser(user);
-      localStorage.setItem('user', JSON.stringify(user));
-      return true;
-    }
-    return false;
+    // Always return success for now
+    const user = { username: username || 'demo' };
+    setUser(user);
+    return true;
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+    // For now, just reset to the demo user instead of null
+    setUser({ username: 'demo' });
   };
 
   return (
@@ -59,17 +51,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// Modified to always allow access
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
   
-  if (!user) {
-    window.location.href = '/';
-    return null;
-  }
-  
+  // Always render children, bypassing the protection
   return <>{children}</>;
 };
