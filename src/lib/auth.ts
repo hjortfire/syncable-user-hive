@@ -36,8 +36,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
+    // Simple authentication for demo purposes
     // In a real app, validate against server
-    // For now, just a simple check
     if (username && password) {
       const user = { username };
       setUser(user);
