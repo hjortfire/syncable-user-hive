@@ -2,18 +2,30 @@
 import { cacheData, UserData } from "./cache";
 import { toast } from "sonner";
 
+// SSH and Database configuration
+const SSH_CONFIG = {
+  host: "thisismeserver",
+  port: 22,
+  username: "iamthenewuser",
+  password: "thisisjustatempapasword1"
+};
+
+const DB_CONFIG = {
+  database: "new_iq_database",
+  user: "metheuserofthedatabase",
+  password: "secretbig123",
+  port: 3306
+};
+
 // Mock function for simulating SSH connection
 // In production, this would connect to your actual server via an API
 export const connectToDatabase = async (): Promise<boolean> => {
   console.log('Connecting to database...');
   
   try {
-    // In a real application, this would use environment variables:
-    // const sshHost = process.env.SSH_HOST;
-    // const sshUser = process.env.SSH_USER;
-    // const sshPassword = process.env.SSH_PASSWORD;
-    // const dbName = process.env.DB_NAME;
-
+    console.log(`Connecting to SSH: ${SSH_CONFIG.host}:${SSH_CONFIG.port} as ${SSH_CONFIG.username}`);
+    console.log(`Connecting to DB: ${DB_CONFIG.database} as ${DB_CONFIG.user} on port ${DB_CONFIG.port}`);
+    
     // Simulate connection delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
