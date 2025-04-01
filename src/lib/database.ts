@@ -1,58 +1,157 @@
-
 import { cacheData, UserData } from "./cache";
 import { toast } from "sonner";
+import { Client } from "ssh2";
+import mysql from "mysql2/promise";
 
 // SSH and Database configuration
-const SSH_CONFIG = {
+export const SSH_CONFIG = {
   host: "thisismeserver",
   port: 22,
   username: "iamthenewuser",
   password: "thisisjustatempapasword1"
 };
 
-const DB_CONFIG = {
+export const DB_CONFIG = {
   database: "new_iq_database",
   user: "metheuserofthedatabase",
   password: "secretbig123",
-  port: 3306
+  port: 3306,
+  host: '127.0.0.1' // We'll connect to MySQL through the SSH tunnel
 };
 
-// Mock function for simulating SSH connection
-// In production, this would connect to your actual server via an API
+let sshClient: Client | null = null;
+let dbConnection: mysql.Connection | null = null;
+
+// Create an SSH tunnel and connect to the database
 export const connectToDatabase = async (): Promise<boolean> => {
-  console.log('Connecting to database...');
+  console.log('Connecting to database via SSH tunnel...');
   
-  try {
-    console.log(`Connecting to SSH: ${SSH_CONFIG.host}:${SSH_CONFIG.port} as ${SSH_CONFIG.username}`);
-    console.log(`Connecting to DB: ${DB_CONFIG.database} as ${DB_CONFIG.user} on port ${DB_CONFIG.port}`);
-    
-    // Simulate connection delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Simulate successful connection
-    console.log('Connected to database successfully');
-    return true;
-  } catch (error) {
-    console.error('Database connection error:', error);
-    toast.error('Failed to connect to database');
-    return false;
+  // Close any existing connections
+  await closeConnections();
+  
+  return new Promise((resolve) => {
+    try {
+      console.log(`Connecting to SSH: ${SSH_CONFIG.host}:${SSH_CONFIG.port} as ${SSH_CONFIG.username}`);
+      
+      sshClient = new Client();
+      
+      sshClient.on('ready', async () => {
+        console.log('SSH connection established. Creating database connection...');
+        
+        // Create a tunnel to the database server
+        sshClient!.forwardOut(
+          '127.0.0.1',
+          0,
+          '127.0.0.1', // The MySQL server is on the same machine 
+          DB_CONFIG.port,
+          async (err, stream) => {
+            if (err) {
+              console.error('SSH tunnel error:', err);
+              sshClient!.end();
+              toast.error('Failed to create SSH tunnel');
+              resolve(false);
+              return;
+            }
+            
+            try {
+              console.log(`Connecting to DB: ${DB_CONFIG.database} as ${DB_CONFIG.user}`);
+              
+              // Connect to the MySQL server through the SSH tunnel
+              dbConnection = await mysql.createConnection({
+                user: DB_CONFIG.user,
+                password: DB_CONFIG.password,
+                database: DB_CONFIG.database,
+                stream: stream, // This is the SSH tunnel stream
+                ssl: false
+              });
+              
+              console.log('Database connection established successfully');
+              toast.success('Connected to database via SSH');
+              resolve(true);
+            } catch (dbError) {
+              console.error('Database connection error:', dbError);
+              toast.error('Failed to connect to database');
+              if (sshClient) sshClient.end();
+              resolve(false);
+            }
+          }
+        );
+      });
+      
+      sshClient.on('error', (err) => {
+        console.error('SSH connection error:', err);
+        toast.error('SSH connection failed');
+        resolve(false);
+      });
+      
+      // Connect to the SSH server
+      sshClient.connect(SSH_CONFIG);
+      
+    } catch (error) {
+      console.error('Connection error:', error);
+      toast.error('Failed to establish connection');
+      resolve(false);
+    }
+  });
+};
+
+// Close SSH and database connections
+const closeConnections = async () => {
+  if (dbConnection) {
+    try {
+      await dbConnection.end();
+      console.log('Database connection closed');
+    } catch (err) {
+      console.error('Error closing database connection:', err);
+    }
+    dbConnection = null;
+  }
+  
+  if (sshClient) {
+    sshClient.end();
+    console.log('SSH connection closed');
+    sshClient = null;
   }
 };
 
-// Fetch users data
+// Fetch users data from the actual database
 export const fetchUsers = async (): Promise<UserData[]> => {
   try {
-    // Connect to database
+    // Connect to database via SSH tunnel
     const connected = await connectToDatabase();
-    if (!connected) {
+    if (!connected || !dbConnection) {
       throw new Error('Could not connect to database');
     }
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Query the actual database
+    console.log('Fetching users from database...');
+    const [rows] = await dbConnection.execute('SELECT * FROM users');
+    console.log('Data retrieved:', rows);
     
-    // Return mock data for demonstration purposes
-    // In a real app, this would query your actual database
+    // Convert the rows to our UserData format
+    // Adjust field names as needed based on your actual database schema
+    const userData = (rows as any[]).map(row => ({
+      id: row.id,
+      name: row.name || row.full_name || 'Unknown',
+      age: row.age || 0,
+      email: row.email || 'unknown@example.com',
+      iq_score: row.iq_score || row.score || 0,
+      paid: Boolean(row.paid),
+      certificate: row.certificate || row.cert_id || 'NONE',
+      created_at: row.created_at || row.createdAt || new Date().toISOString()
+    }));
+    
+    // Cache the data
+    cacheData(userData);
+    
+    toast.success('Data synchronized successfully from database');
+    return userData;
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    toast.error('Failed to fetch user data from database');
+    
+    // Fall back to mock data if there's an error connecting to the real database
+    console.log('Falling back to mock data');
     const mockData: UserData[] = [
       {
         id: 1,
@@ -106,14 +205,13 @@ export const fetchUsers = async (): Promise<UserData[]> => {
       }
     ];
     
-    // Cache the data
+    // Cache the mock data
     cacheData(mockData);
     
-    toast.success('Data synchronized successfully');
+    toast.warning('Using mock data (failed to connect to database)');
     return mockData;
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    toast.error('Failed to fetch user data');
-    throw error;
+  } finally {
+    // Don't close the connection here to keep it for subsequent queries
+    // We'll let the app close it when needed
   }
 };
