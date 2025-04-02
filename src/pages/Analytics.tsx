@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -107,30 +106,67 @@ const Analytics = () => {
   const usersByDayData = useMemo(() => {
     if (!userData) return [];
     
-    const days = parseInt(timeRange);
-    const dateGroups: Record<string, number> = {};
-    
-    // Initialize all dates in range
-    for (let i = 0; i < days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      dateGroups[dateStr] = 0;
-    }
-    
-    // Fill with actual data
-    filteredData.forEach(user => {
-      const date = new Date(user.created_at);
-      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (dateGroups[dateStr] !== undefined) {
-        dateGroups[dateStr]++;
+    if (timeRange === "1") {
+      // Show hourly data for 1-day view
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const hourlyGroups: Record<string, number> = {};
+      
+      // Initialize all hours
+      for (let i = 0; i < 24; i++) {
+        const hour = i < 10 ? `0${i}` : `${i}`;
+        hourlyGroups[`${hour}:00`] = 0;
       }
-    });
-    
-    // Convert to array for chart
-    return Object.entries(dateGroups)
-      .map(([date, count]) => ({ date, users: count }))
-      .reverse();
+      
+      // Fill with actual data
+      filteredData.forEach(user => {
+        const userDate = new Date(user.created_at);
+        const userDateDay = new Date(userDate);
+        userDateDay.setHours(0, 0, 0, 0);
+        
+        // Only include today's data
+        if (userDateDay.getTime() === today.getTime()) {
+          const hour = userDate.getHours();
+          const hourStr = hour < 10 ? `0${hour}` : `${hour}`;
+          const hourKey = `${hourStr}:00`;
+          
+          if (hourlyGroups[hourKey] !== undefined) {
+            hourlyGroups[hourKey]++;
+          }
+        }
+      });
+      
+      // Convert to array for chart
+      return Object.entries(hourlyGroups)
+        .map(([hour, count]) => ({ date: hour, users: count }));
+    } else {
+      // Use daily data for other time ranges
+      const days = parseInt(timeRange);
+      const dateGroups: Record<string, number> = {};
+      
+      // Initialize all dates in range
+      for (let i = 0; i < days; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        dateGroups[dateStr] = 0;
+      }
+      
+      // Fill with actual data
+      filteredData.forEach(user => {
+        const date = new Date(user.created_at);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (dateGroups[dateStr] !== undefined) {
+          dateGroups[dateStr]++;
+        }
+      });
+      
+      // Convert to array for chart
+      return Object.entries(dateGroups)
+        .map(([date, count]) => ({ date, users: count }))
+        .reverse();
+    }
   }, [filteredData, timeRange, userData]);
 
   const iqDistributionData = useMemo(() => {
@@ -157,7 +193,6 @@ const Analytics = () => {
     });
   }, [filteredData]);
 
-  // New paid vs unpaid chart data
   const paidVsUnpaidData = useMemo(() => {
     if (!filteredData.length) return [];
     
@@ -178,7 +213,6 @@ const Analytics = () => {
     ];
   }, [filteredData]);
 
-  // Revenue data by day
   const revenueByDayData = useMemo(() => {
     if (!userData) return [];
     
@@ -215,7 +249,6 @@ const Analytics = () => {
       .reverse();
   }, [filteredData, timeRange, userData]);
 
-  // If no data available
   if (!userData || userData.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -314,7 +347,6 @@ const Analytics = () => {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Stats Overview */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -382,7 +414,6 @@ const Analytics = () => {
         </Card>
       </div>
 
-      {/* Charts section */}
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         <Card className="col-span-1 lg:col-span-2">
           <CardHeader>

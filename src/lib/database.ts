@@ -1,5 +1,5 @@
 
-import { cacheData, UserData } from "./cache";
+import { cacheData, getCachedData, UserData } from "./cache";
 import { toast } from "sonner";
 
 const API_URL = "http://localhost:4532/admingetall";
@@ -7,6 +7,15 @@ const API_TOKEN = "testinghard123";
 
 // Fetch users data from the API endpoint
 export const fetchUsers = async (): Promise<UserData[]> => {
+  // First, check if we already have data in the cache
+  const { data: cachedData } = getCachedData();
+  
+  // If we have cached data, return it without making an API call
+  if (cachedData && cachedData.length > 0) {
+    console.log('Using cached data instead of making API call');
+    return cachedData;
+  }
+  
   try {
     console.log('Fetching users from API endpoint...');
     
