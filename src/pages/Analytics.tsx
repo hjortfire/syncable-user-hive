@@ -19,7 +19,8 @@ import {
   Users, 
   BrainCircuit, 
   BadgeCheck, 
-  Filter 
+  Filter, 
+  CreditCard
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -151,24 +152,25 @@ const Analytics = () => {
     });
   }, [filteredData]);
 
-  const certificationData = useMemo(() => {
+  // New paid vs unpaid chart data
+  const paidVsUnpaidData = useMemo(() => {
     if (!filteredData.length) return [];
     
-    // Group by certificate types
-    const certTypes: Record<string, number> = {};
+    const paidUsers = filteredData.filter(user => user.paid).length;
+    const unpaidUsers = filteredData.length - paidUsers;
     
-    filteredData.forEach(user => {
-      const cert = user.certificate || "NONE";
-      certTypes[cert] = (certTypes[cert] || 0) + 1;
-    });
-    
-    return Object.entries(certTypes)
-      .map(([cert, count]) => ({
-        name: cert,
-        value: count
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5); // Top 5 certificates
+    return [
+      { 
+        name: "Paid", 
+        value: paidUsers,
+        percentage: Math.round((paidUsers / filteredData.length) * 100)
+      },
+      { 
+        name: "Unpaid", 
+        value: unpaidUsers,
+        percentage: Math.round((unpaidUsers / filteredData.length) * 100)
+      }
+    ];
   }, [filteredData]);
 
   // If no data available
@@ -314,7 +316,7 @@ const Analytics = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Paid Users</CardTitle>
-            <BadgeCheck className="h-4 w-4 text-muted-foreground" />
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.paidPercentage}%</div>
@@ -394,39 +396,36 @@ const Analytics = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Certificate Distribution</CardTitle>
+            <CardTitle>Payment Status</CardTitle>
             <CardDescription>
-              Top certificate types
+              Paid vs Unpaid Users
             </CardDescription>
           </CardHeader>
           <CardContent className="h-80">
             <ChartContainer 
               className="h-full"
               config={{
-                blue: { color: '#0088FE' },
-                green: { color: '#00C49F' },
-                yellow: { color: '#FFBB28' },
-                orange: { color: '#FF8042' },
-                purple: { color: '#8884d8' }
+                Paid: { color: '#22c55e' }, // Green color for paid
+                Unpaid: { color: '#ef4444' } // Red color for unpaid
               }}
             >
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={certificationData}
+                    data={paidVsUnpaidData}
                     cx="50%"
                     cy="50%"
                     labelLine={true}
-                    label={({ name, value }) => `${name}: ${value}`}
+                    label={({ name, percentage }) => `${name}: ${percentage}%`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {certificationData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
+                    <Cell key="cell-paid" fill="#22c55e" name="Paid" />
+                    <Cell key="cell-unpaid" fill="#ef4444" name="Unpaid" />
                   </Pie>
                   <Tooltip content={<ChartTooltipContent />} />
+                  <Legend />
                 </PieChart>
               </ResponsiveContainer>
             </ChartContainer>
