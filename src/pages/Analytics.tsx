@@ -20,12 +20,14 @@ import {
   BrainCircuit, 
   BadgeCheck, 
   Filter, 
-  CreditCard
+  CreditCard,
+  DollarSign
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const CERTIFICATE_PRICE = 6.99;
 
 const Analytics = () => {
   // Get cached data
@@ -73,7 +75,8 @@ const Analytics = () => {
         newUsersToday: 0,
         paidUsers: 0,
         avgIQ: 0,
-        paidPercentage: 0
+        paidPercentage: 0,
+        totalRevenue: 0
       };
     }
 
@@ -88,13 +91,15 @@ const Analytics = () => {
     
     const paidUsers = filteredData.filter(user => user.paid).length;
     const totalIQ = filteredData.reduce((sum, user) => sum + user.iq_score, 0);
+    const totalRevenue = paidUsers * CERTIFICATE_PRICE;
     
     return {
       totalUsers: filteredData.length,
       newUsersToday,
       paidUsers,
       avgIQ: Math.round(totalIQ / filteredData.length),
-      paidPercentage: Math.round((paidUsers / filteredData.length) * 100)
+      paidPercentage: Math.round((paidUsers / filteredData.length) * 100),
+      totalRevenue: parseFloat(totalRevenue.toFixed(2))
     };
   }, [filteredData]);
 
@@ -172,6 +177,43 @@ const Analytics = () => {
       }
     ];
   }, [filteredData]);
+
+  // Revenue data by day
+  const revenueByDayData = useMemo(() => {
+    if (!userData) return [];
+    
+    const days = parseInt(timeRange);
+    const dateGroups: Record<string, { users: number, revenue: number }> = {};
+    
+    // Initialize all dates in range
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      dateGroups[dateStr] = { users: 0, revenue: 0 };
+    }
+    
+    // Fill with actual data
+    filteredData.forEach(user => {
+      if (user.paid) {
+        const date = new Date(user.created_at);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (dateGroups[dateStr] !== undefined) {
+          dateGroups[dateStr].users++;
+          dateGroups[dateStr].revenue += CERTIFICATE_PRICE;
+        }
+      }
+    });
+    
+    // Convert to array for chart
+    return Object.entries(dateGroups)
+      .map(([date, data]) => ({ 
+        date, 
+        users: data.users,
+        revenue: parseFloat(data.revenue.toFixed(2))
+      }))
+      .reverse();
+  }, [filteredData, timeRange, userData]);
 
   // If no data available
   if (!userData || userData.length === 0) {
@@ -273,7 +315,7 @@ const Analytics = () => {
       </Collapsible>
 
       {/* Stats Overview */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -325,6 +367,19 @@ const Analytics = () => {
             </p>
           </CardContent>
         </Card>
+        
+        <Card className="bg-gradient-to-br from-green-50 to-white border-green-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">${stats.totalRevenue}</div>
+            <p className="text-xs text-green-700">
+              From {stats.paidUsers} paid certificates
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Charts section */}
@@ -348,6 +403,32 @@ const Analytics = () => {
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="users" name="New Users" fill="#8884d8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Revenue by Day</CardTitle>
+            <CardDescription>
+              Daily revenue from paid certificates
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={revenueByDayData}
+                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis yAxisId="left" orientation="left" stroke="#22c55e" />
+                <YAxis yAxisId="right" orientation="right" stroke="#8884d8" />
+                <Tooltip />
+                <Legend />
+                <Bar yAxisId="left" dataKey="revenue" name="Revenue ($)" fill="#22c55e" />
+                <Bar yAxisId="right" dataKey="users" name="Paid Users" fill="#8884d8" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
